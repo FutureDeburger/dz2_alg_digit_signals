@@ -1,5 +1,6 @@
 import numpy as np
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+
 
 def function(x):
     return x + 1
@@ -28,17 +29,14 @@ def calculate_a_0(res_integrate):
     return a_0
 
 def calculate_a_k(k, left_border, right_border, step, func):
-
     def integrand_func(x):
         return func(x) * np.cos(k * x)
 
     integral = calculate_method_rectangles(left_border, right_border, step, integrand_func)
     a_k = (1 / np.pi) * integral
-
     return a_k
 
 def calculate_b_k(k, left_border, right_border, step, func):
-
     def integrand_func(x):
         return func(x) * np.sin(k * x)
 
@@ -70,7 +68,7 @@ def reconstruct_signal(t, a_0, a_coeffs, b_coeffs):
 
     return result
 
-def calculate_required_harmonics(left_border, right_border, step_motion, orig_signal, target_error=0.05, func=None):
+def calculate_required_harmonics(left_border, right_border, step_motion, orig_signal, target_error, func=None):
     if func is None:
         func = function
 
@@ -82,13 +80,14 @@ def calculate_required_harmonics(left_border, right_border, step_motion, orig_si
         n_terms += 1
 
         a_0, a_coeffs, b_coeffs = calculate_fourier_coefficients(n_terms, left_border, right_border, step_motion, func)
+
         reconstructed_signal = reconstruct_signal(t, a_0, a_coeffs, b_coeffs)
+
         avg_approx_error = np.mean((orig_signal - reconstructed_signal) ** 2)
         relative_error = avg_approx_error / np.mean(orig_signal ** 2)
         current_error = relative_error
 
-        # print(f"N = {n_terms}, Ошибка = {current_error:.4f} ({current_error * 100:.2f}%)")
-    return n_terms
+    return n_terms, a_0, a_coeffs, b_coeffs
 
 def calculate_trend(left_border, right_border, step, func):
     integral_0 = calculate_method_rectangles(left_border, right_border, step, func)
@@ -96,111 +95,61 @@ def calculate_trend(left_border, right_border, step, func):
     trend = a_0 / 2
     return trend
 
-def function_without_trend(x, trend):
-    return function(x) - trend
-
 
 if __name__ == "__main__":
 
     left_border = -np.pi
     right_border = np.pi
     step_motion = 1 * 10 ** -4
-    t = np.linspace(-np.pi, np.pi, 1000)
+    t = np.linspace(left_border, right_border, 1000)
+
+    target_error = 0.1
+
     original_signal = function(t)
 
-    number_harmonics_for_my_function = calculate_required_harmonics(left_border, right_border, step_motion, original_signal, func=function)
-    # print(f"Для исходной функции потребовалось N = {number_harmonics_for_my_function} гармоник")
+    # print("Исходная функция")
+    N_optimal, a_0_f, a_coeffs_f, b_coeffs_f = calculate_required_harmonics(left_border, right_border, step_motion, original_signal, target_error, function)
+    print(f"Для исходной функции потребовалось N = {N_optimal} гармоник\n")
 
-    my_trend = calculate_trend(left_border, right_border, step_motion, function)
-    # print(f"Тренд: {my_trend:.6f}")
+    reconstructed_f = reconstruct_signal(t, a_0_f, a_coeffs_f, b_coeffs_f)
 
+
+    # print("Функция без тренда")
+    trend = calculate_trend(left_border, right_border, step_motion, function)
+    print(f"Тренд: {trend:.6f}")
 
     def g_function(x):
-        return function_without_trend(x, my_trend)
+        return function(x) - trend
 
-    # func_without_trend_signal = g_function(t)
+    g_signal = g_function(t)
 
-    # a_0, a_k, b_k = calculate_fourier_coefficients(3, left_border, right_border, step_motion, func_without_trend_signal)
-    #
-    # print(a_k)
+    M_optimal, a_0_g, a_coeffs_g, b_coeffs_g = calculate_required_harmonics(left_border, right_border, step_motion, g_signal, target_error, g_function)
+    print(f"Для функции без тренда потребовалось M = {M_optimal} гармоник")
 
-    # number_harmonics_for_function_without_trend = calculate_required_harmonics(left_border, right_border, step_motion, func_without_trend_signal, func=g_function)
-    # print(f"Для функции без тренда потребовалось M = {number_harmonics_for_function_without_trend} гармоник")
-
-    # Проверим первые 5 коэффициентов вручную
-    print("\nПроверка коэффициентов для g(t) = t:")
-    print("Теоретические значения: a_n = 0, b_n = 2*(-1)^(n+1)/n")
-
-    for n in range(1, 6):
-        a_n = calculate_a_k(n, left_border, right_border, step_motion, g_function)
-        b_n = calculate_b_k(n, left_border, right_border, step_motion, g_function)
-        theoretical_b_n = 2 * (-1) ** (n + 1) / n
-
-        print(f"n={n}: a_{n} = {a_n:.8f}, b_{n} = {b_n:.8f} (теор.: {theoretical_b_n:.8f})")
-        print(f"   Ошибка b_{n}: {abs(b_n - theoretical_b_n):.8f}")
-
-    # 3. Проверим a₀ для g(t) - должен быть близок к 0
-    integral_g = calculate_method_rectangles(left_border, right_border, step_motion, g_function)
-    a_0_g = calculate_a_0(integral_g)
-    print(f"\na₀ для g(t): {a_0_g:.10f} (должен быть ~0)")
-
-    # 4. Проверим сходимость для g(t) с выводом ошибки
-    print("\nПодбор гармоник для g(t):")
-    func_without_trend_signal = g_function(t)
-
-    current_error = 1
-    n_terms = 0
-    error_history = []
-
-    while current_error > 0.05 and n_terms < 50:
-        n_terms += 1
-
-        a_0, a_coeffs, b_coeffs = calculate_fourier_coefficients(
-            n_terms, left_border, right_border, step_motion, g_function
-        )
-
-        reconstructed_signal = reconstruct_signal(t, a_0, a_coeffs, b_coeffs)
-
-        avg_approx_error = np.mean((func_without_trend_signal - reconstructed_signal) ** 2)
-        relative_error = avg_approx_error / np.mean(func_without_trend_signal ** 2)
-
-        current_error = relative_error
-        error_history.append((n_terms, current_error))
-
-        if n_terms <= 10 or n_terms % 5 == 0:
-            print(f"M = {n_terms:2d}, Ошибка = {current_error:.6f} ({current_error * 100:.2f}%)")
-
-    print(f"\nДля функции без тренда потребовалось M = {n_terms} гармоник")
-
-    # 5. Для сравнения - исходная функция
-    print("\nПодбор гармоник для f(t):")
-    number_harmonics_for_my_function = calculate_required_harmonics(
-        left_border, right_border, step_motion, original_signal, func=function
-    )
-    print(f"Для исходной функции потребовалось N = {number_harmonics_for_my_function} гармоник")
-
-    # print("Коэффициенты Фурье треугольного сигнала:")
-    # print(f"a_0 = {a_0:.6f}")
-    # print("\nКоэффициенты a_k:")
-    # for k, a_k in enumerate(a_coeffs, 1):
-    #     print(f"a_{k} = {a_k:.6f}")
-    #
-    # print("\nКоэффициенты b_k:")
-    # for k, b_k in enumerate(b_coeffs, 1):
-    #     print(f"b_{k} = {b_k:.6f}")
+    reconstructed_g = reconstruct_signal(t, a_0_g, a_coeffs_g, b_coeffs_g)
+    reconstructed_f_from_g = trend + reconstructed_g
 
 
+    plt.figure(figsize=(10, 7))
 
+    plt.subplot(2, 1, 1)
+    plt.plot(t, original_signal, 'b-', linewidth=2, label=f'Исходная функция f(t)')
+    plt.plot(t, reconstructed_f, 'r--', linewidth=1.5, label=f'Аппроксимация (N={N_optimal})')
+    plt.title(f'Точность: {target_error * 100}%\n\nАппроксимация исходной функции', fontsize=14)
+    plt.xlabel('t')
+    plt.ylabel('f(t)')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
 
-    # plt.figure(figsize=(7, 7))
-    #
-    # plt.plot(t, original_signal, 'b-', linewidth=2.5, label='Исходный треугольный сигнал', alpha=0.8)
-    # plt.plot(t, reconstructed_signal, 'r--', linewidth=2, label=f'Ряд Фурье ({n_terms} гармоник)')
-    #
-    # plt.title(f'..., {n_terms} гармоник(и)', fontsize=16)
-    # plt.grid(True, alpha=0.3)
-    # plt.ylim(-7, 7)
-    # plt.xlim(-7, 7)
-    #
-    # plt.tight_layout()
-    # plt.show()
+    plt.subplot(2, 1, 2)
+    plt.plot(t, original_signal, 'b-', linewidth=2, label='Исходная функция f(t)')
+    plt.plot(t, reconstructed_f_from_g, 'g--', linewidth=1.5, label=f'Аппроксимация (M={M_optimal})')
+    plt.axhline(y=trend, color='m', linestyle=':', linewidth=2, label='Тренд')
+    plt.title('Аппроксимация через функцию без тренда', fontsize=14)
+    plt.xlabel('t')
+    plt.ylabel('f(t)')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
