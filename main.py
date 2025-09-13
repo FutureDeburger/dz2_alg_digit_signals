@@ -103,20 +103,22 @@ if __name__ == "__main__":
     step_motion = 1 * 10 ** -4
     t = np.linspace(left_border, right_border, 1000)
 
-    target_error = 0.1
+    target_error = 0.02
 
     original_signal = function(t)
 
+    print(f"Мера близости: {target_error * 100}")
+
     # print("Исходная функция")
     N_optimal, a_0_f, a_coeffs_f, b_coeffs_f = calculate_required_harmonics(left_border, right_border, step_motion, original_signal, target_error, function)
-    print(f"Для исходной функции потребовалось N = {N_optimal} гармоник\n")
+    print(f"Для исходной функции потребовалось N = {N_optimal} гармоник")
 
     reconstructed_f = reconstruct_signal(t, a_0_f, a_coeffs_f, b_coeffs_f)
 
 
     # print("Функция без тренда")
     trend = calculate_trend(left_border, right_border, step_motion, function)
-    print(f"Тренд: {trend:.6f}")
+    # print(f"Тренд: {trend:.6f}")
 
     def g_function(x):
         return function(x) - trend
